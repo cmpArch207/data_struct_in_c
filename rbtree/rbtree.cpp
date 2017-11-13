@@ -16,44 +16,52 @@ char * randomStr(int length) {
 	char alphanum[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 	char * word = (char *) malloc (length * sizeof(char));
-	for (int i = 0; i < length; ++i) {
+	int i;
+	for (i = 0; i < length; ++i) {
 		int index = rand() % (sizeof (alphanum) - 1);
 		word[i] = alphanum[index];
 	}
+	word[i] = '\0';
 
 	return word;
 }
 
-/* Create a new hashtable. */
-hashtable_t *ht_create( int size ) {
+/* Create a new root. */
+rbtree_t *rb_create( int size ) {
 
-	hashtable_t *hashtable = NULL;
+	rbtree_t *rbtree = NULL;
 	int i;
 
 	if( size < 1 ) return NULL;
 
-	/* Allocate the table itself. */
-	if( ( hashtable = (hashtable_t *)malloc( sizeof( hashtable_t ) ) ) == NULL ) {
+	/* Allocate the tree itself. */
+	if( ( rbtree = (rbtree_t *)malloc( sizeof( rbtree_t ) ) ) == NULL ) {
 		return NULL;
 	}
 
-	/* Allocate pointers to the
-	 * head nodes. */
-	if( ( hashtable->table = (entry_t **)malloc( sizeof( entry_t * ) * size ) ) == NULL ) {
+	//Allocate pointers to the
+	//head nodes. 
+	if( ( rbtree->root = (Node_t *)malloc( sizeof( Node_t * ) ) ) == NULL ) {
 		return NULL;
 	}
-	for( i = 0; i < size; i++ ) {
-		hashtable->table[i] = NULL;
-	}
+	//for( i = 0; i < size; i++ ) {
+		//hashtable->table[i] = NULL;
+	//}
 
-	hashtable->size = size;
-	hashtable->capacity = size;
+	rbtree->size = size;
+	rbtree->capacity = size;
+	rbtree->root = NULL;
 
-	return hashtable;   
+	return rbtree;   
+}
+
+bool isRed(Node_t * x) {
+	if (x == NULL) return false;
+	return x->color == RED;
 }
 
 Node_t * rotateLeft(Node_t * h) {
-	Node * x = h->right;
+	Node_t * x = h->right;
 	h->right = x->left;
 	x->left = h;
 	x->color = h->color;
@@ -61,8 +69,8 @@ Node_t * rotateLeft(Node_t * h) {
 	return x;
 }
 
-Node * rotateRight(Node * h) {
-	Node * x = h->left;
+Node_t * rotateRight(Node_t * h) {
+	Node_t * x = h->left;
 	h->left = x->right;
 	x->right = h;
 	x->color = h->color;
@@ -70,113 +78,127 @@ Node * rotateRight(Node * h) {
 	return x;
 }
 
-void flipColors(Node * h) {
+void flipColors(Node_t * h) {
 	h->color = RED;
 	h->left->color = BLACK;
 	h->right->color = BLACK;
 }
 
-Node * put(rbtree_t * rb, char * key, char * value) {
 	
 
 /* Create a key-value pair. */
-entry_t *ht_newpair(int elt_size) {
-	entry_t *newpair = (entry_t *)malloc(sizeof(entry_t));
+Node_t *rb_newNode(int elt_size, bool clr) {
+	Node_t *newnode = (Node_t *)malloc(sizeof(Node_t));
 
-	newpair->key   = randomStr(elt_size);
-	newpair->value = randomStr(elt_size);
-	newpair->next = NULL;
+	newnode->key   = randomStr(elt_size);
+	newnode->value = randomStr(elt_size);
+	newnode->left = NULL;
+	newnode->right = NULL;
+	newnode->color = clr;
 
-	return newpair;
+	return newnode;
 }
 
-/* Insert a key-value pair into a hash table. */
-void ht_set( hashtable_t *hashtable, entry_t * newpair) {
-	int bin = 0;
-	//entry_t *newpair = NULL;
-	entry_t *next = NULL;
-	entry_t *last = NULL;
+Node_t * rb_insert(rbtree_t * rb, Node_t * root, Node_t * node) {
+	if (root == NULL) {
+		root = node;
+		root->color = RED;
+		rb->size--;
+		//cout << "first node\n";
+		//cout << rb->root->key << " " << rb->root->value << endl;
 
-	//newpair = ht_newpair(len);
-	char * key   = newpair->key;
-	char * value = newpair->value;
-
-	bin = ht_hash( hashtable, key );
-
-	next = hashtable->table[ bin ];
-
-	//search the chain
-	while( next != NULL && next->key != NULL && strcmp( key, next->key ) > 0 ) {
-		last = next;
-		next = next->next;
+		return node;
 	}
 
-	/* There's already a pair. Let's replace that string. */
-	if( next != NULL && next->key != NULL && strcmp( key, next->key ) == 0 ) {
+	int cmp = strcmp(node->key, root->key);
 
-		free( next->value );
-		next->value = strdup( value );
+	if (cmp < 0) 
+		root->left = rb_insert(rb, root->left, node);
+	else if (cmp > 0) 
+		root->right = rb_insert(rb, root->right, node);
+	else // if (cmp == 0)
+		root->value = node->value;
 
-	/* Nope, could't find it. Time to grow a pair. */
-	} else {
+	//rotate nodes if it is necessary
+	if (isRed(root->right) && !isRed(root->left))
+		root = rotateLeft(root);
+	if (isRed(root->left)  && isRed(root->left->left))
+		root = rotateRight(root);
+	if (isRed(root->left) &&isRed(root->right))
+		flipColors(root);
 
-		if( next == hashtable->table[ bin ] ) {
-			newpair->next = next;
-			hashtable->table[ bin ] = newpair;
-		} else if ( next == NULL ) {
-			last->next = newpair;
-
-		} else  {
-			newpair->next = next;
-			last->next = newpair;
-		}
-
-		//update the size
-		hashtable->size--;
-	}
-}
-
-void ht_delete( hashtable_t *hashtable, entry_t * newpair) {
-	int bin = 0;
-	entry_t *curr = NULL;
-	entry_t *next = NULL;
-
-	char * key   = newpair->key;
-
-	bin = ht_hash( hashtable, key );
-
-	curr = hashtable->table[ bin ];
-	if ( curr != NULL) {
-		hashtable->table[bin] = curr->next;
-		free(curr);
-		hashtable->size++;
-	}
+	return root;
 }
 
 
-hashtable_t *ht_initialize( int size, int elt_size)
+Node_t * rb_delete( rbtree_t *rb, Node_t * root, Node_t * node) {
+	if (root == NULL) { 
+		cout << "reach NULL\n";
+		return NULL;
+	}
+	if (root->left == NULL && root->right == NULL) {//if reach a leave, delete it
+		cout << "delete happens\n";
+		free(root);
+		rb->size++;
+		return NULL;
+	}
+
+	int cmp = strcmp(node->key, root->key);
+
+	if (cmp < 0) 
+		root->left = rb_delete(rb, root->left, node);
+	else if (cmp > 0) 
+		root->right = rb_delete(rb, root->right, node);
+	else // if (cmp == 0) update value
+		root->value = node->value;
+
+	//rotate nodes if it is necessary
+	if (root->left == NULL && root->right != NULL)
+		root = rotateLeft(root);
+	if (root->left != NULL && root->right == NULL)
+		root->left->color = RED; 
+
+	return root;
+}
+
+
+rbtree_t *rb_initialize( int size, int elt_size)
 {
-
 	//allocate space in memory
-	hashtable_t * hashtable = ht_create(size);
+	rbtree_t * rbtree = rb_create(size);
 
 	//assign key value pairs to this hashtable
 	for (int i = 0; i < size; ++i) {
-		entry_t * newpair = ht_newpair(elt_size);
-		if (hashtable->size > 0) {
-			ht_set(hashtable, newpair);
+		//entry_t * newpair = ht_newpair(elt_size);
+		Node_t * node = rb_newNode(elt_size, RED);
+		//if (node == NULL) 
+			//cout << "null node\n";
+		//else {
+			//if (node->key == NULL)
+				//cout << "null key\n";
+			//else
+				//cout << "key: " << node->key << endl;
+			//if (node->value == NULL)
+				//cout << "null val\n";
+			//else
+				//cout << "val: " << node->value << endl;
+		//}
+		//cout << "i = " << i << endl;
+
+		if (rbtree->size > 0) {
+			rbtree->root = rb_insert(rbtree, rbtree->root, node);
 		}
-		else {
-			ht_delete(hashtable, newpair);
-		}
+		//else {
+			//ht_delete(hashtable, newpair);
+		//}
 	}
 
-	return hashtable;
+	return rbtree;
 
 }
 
 
-void run_bypass( hashtable_t *hashtable, int size, int loops, int elt_size) {
+void run_bypass( rbtree_t *rbtree, int size, int loops, int elt_size) {
 	//initialize log
 	int * log = (int *)malloc(elt_size * 2 * size * loops);
 	uint64_t start, end;
@@ -186,9 +208,9 @@ void run_bypass( hashtable_t *hashtable, int size, int loops, int elt_size) {
 		for (int i = 0; i < size; ++i) {
 			//cout << "j: " << j << endl;
 			//cout << "i: " << i << endl;
-			entry_t * newpair = ht_newpair(elt_size);
-			char * key = newpair->key;
-			char * value = newpair->value;
+			Node_t * node = rb_newNode(elt_size, RED);
+			char * key = node->key;
+			char * value = node->value;
 			//log updates
 			//for simplicity, log the random kv pair
 			int n, p;
@@ -205,13 +227,13 @@ void run_bypass( hashtable_t *hashtable, int size, int loops, int elt_size) {
 
 			//cout << "hashtable size = " << hashtable->size << endl;
 			//write working data
-			if (hashtable->size > 0) {
+			if (rbtree->size > 0) {
 				//insertion
-				ht_set(hashtable, newpair);
+				rb_insert(rbtree, rbtree->root, node);
 			}
 			else {
 				//deletion
-				ht_delete(hashtable, newpair);
+				rb_delete(rbtree, rbtree->root, node);
 			}
 		}
 	}
@@ -219,35 +241,35 @@ void run_bypass( hashtable_t *hashtable, int size, int loops, int elt_size) {
 
 
 
-void run_cache( hashtable_t *hashtable, int size, int loops, int elt_size) {
-	//initialize log
-	char * log = (char *)malloc(elt_size * 2 * size * loops * 10);
-	uint64_t start, end;
-	start = rdtsc();
+//void run_cache( hashtable_t *hashtable, int size, int loops, int elt_size) {
+	////initialize log
+	//char * log = (char *)malloc(elt_size * 2 * size * loops * 10);
+	//uint64_t start, end;
+	//start = rdtsc();
 
-	for (int j = 0; j < loops; ++j) {
-		for (int i = 0; i < size; ++i) {
-			entry_t * newpair = ht_newpair(elt_size);
-			char * key = newpair->key;
-			char * value = newpair->value;
-			//log updates
-			//for simplicity, log the random kv pair
-			strcpy(log, key);
-			log += sizeof(key);
-			strcpy(log, value);
-			log += sizeof(value);
+	//for (int j = 0; j < loops; ++j) {
+		//for (int i = 0; i < size; ++i) {
+			//entry_t * newpair = ht_newpair(elt_size);
+			//char * key = newpair->key;
+			//char * value = newpair->value;
+			////log updates
+			////for simplicity, log the random kv pair
+			//strcpy(log, key);
+			//log += sizeof(key);
+			//strcpy(log, value);
+			//log += sizeof(value);
 
-			asm volatile("sfence");
+			//asm volatile("sfence");
 
-			//write working data
-			if (hashtable->size > 0) {
-				//insertion
+			////write working data
+			//if (hashtable->size > 0) {
+				////insertion
 
-			}
-			else {
-				//deletion
-			}
-		}
-	}
-}
+			//}
+			//else {
+				////deletion
+			//}
+		//}
+	//}
+//}
 

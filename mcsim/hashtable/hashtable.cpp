@@ -168,7 +168,7 @@ hashtable_t *ht_initialize( int size, int elt_size)
 
 void run_bypass( hashtable_t *hashtable, int size, int loops, int elt_size) {
 	//initialize log
-	int * log = (int *)malloc(elt_size * 2 * size * loops);
+	int * log = (int *)malloc(elt_size * 2 * size * loops);//size * 2 to store key + value
 	uint64_t start, end;
 	start = rdtsc();
 
